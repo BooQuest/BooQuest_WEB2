@@ -61,11 +61,17 @@ export default function GuideIntro({ onStart, className }: GuideIntroProps) {
           </motion.span>
           
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">
-            고민만 하셨나요? 이제 시작하세요
+            인스타 부업 시작하기
           </h1>
           
-          <p className="text-xl text-gray-600 font-medium">
-            AI 도움으로 20분만에 회원 가입 부터 첫 게시물 업로드까지 완성
+          <p className="text-lg sm:text-xl text-gray-500 font-normal leading-relaxed">
+            고민만 하셨나요? 이제 시작하세요.
+            <br />
+            AI 도움으로{' '}
+            <span className="font-bold text-gray-700">
+              20분만에 회원 가입부터 첫 게시물 업로드까지
+            </span>{' '}
+            완성
           </p>
         </motion.div>
 
@@ -80,7 +86,7 @@ export default function GuideIntro({ onStart, className }: GuideIntroProps) {
           {/* 5단계 목차 */}
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-gray-900 mb-4">
-              🚀 5단계만 따라하면 끝! 복잡한 건 AI가 도와줄게요
+              🚀 5단계만 따라하면 끝! 어려운 건 AI가 도와줄게요
             </h2>
             
             <div className="space-y-3">
@@ -110,9 +116,9 @@ export default function GuideIntro({ onStart, className }: GuideIntroProps) {
                           </span>
                         )}
                       </div>
-                      <span className="text-xs text-gray-500">
+                      {/* <span className="text-xs text-gray-500">
                         {step.description}
-                      </span>
+                      </span> */}
                     </div>
                     
                     <span className="text-xs font-semibold text-gray-400">
@@ -135,9 +141,6 @@ export default function GuideIntro({ onStart, className }: GuideIntroProps) {
             transition={{ delay: 0.9, duration: 0.4 }}
           >
             <div className="space-y-2">
-              <label htmlFor="name" className="block text-sm font-bold text-gray-700">
-                첫 걸음을 내딛을 준비가 되셨나요? 이름을 알려주세요
-              </label>
               <input
                 type="text"
                 id="name"

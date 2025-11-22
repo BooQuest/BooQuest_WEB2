@@ -1,6 +1,6 @@
 // 인스타 부업 가이드 단계 데이터 상수
 import { UserPlus, User, Briefcase, Image as ImageIcon, Upload } from 'lucide-react';
-import { Step } from '@/app/components/features/StepCard';
+import { Step, SubStep, ImageData } from '@/app/components/features/StepCard';
 
 // 5단계 가이드 데이터
 export const GUIDE_STEPS: Step[] = [
@@ -12,6 +12,41 @@ export const GUIDE_STEPS: Step[] = [
     isOptional: false,
     icon: UserPlus,
     gradient: 'from-purple-500 via-purple-600 to-indigo-600',
+    subSteps: [
+      {
+        id: 1,
+        title: '앱 설치',
+        description: '인스타그램 앱을 설치하세요',
+        links: {
+          android: 'https://play.google.com/store/apps/details?id=com.instagram.android',
+          ios: 'https://apps.apple.com/app/instagram/id389801252',
+        },
+      },
+      {
+        id: 2,
+        title: '계정 등록',
+        description: '새 계정 만들기',
+        images: [
+          {
+            src: '/images/start_1_1.PNG',
+            title: '로그인 화면 : 새 계정 만들기',
+          },
+          {
+            src: '/images/start_1_2.PNG',
+            title: '휴대폰 or 이메일 입력',
+          },
+          {
+            src: '/images/start_1_3.PNG',
+            title: '이름 입력',
+          },
+          {
+            src: '/images/start_1_4.PNG',
+            title: '가입 후 메인 화면',
+          },
+        ],
+        video: '/videos/start_1.MP4',
+      },
+    ],
   },
   {
     id: 2,

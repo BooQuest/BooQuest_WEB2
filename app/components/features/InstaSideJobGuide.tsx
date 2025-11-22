@@ -3,6 +3,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from '@/app/lib/utils/clsx';
 import ProgressBar from '@/app/components/ui/ProgressBar';
@@ -10,7 +11,6 @@ import StepCard from '@/app/components/features/StepCard';
 import GuideHeader from '@/app/components/features/GuideHeader';
 import StepIndicator from '@/app/components/features/StepIndicator';
 import GuideBackground from '@/app/components/features/GuideBackground';
-import CompletionModal from '@/app/components/features/CompletionModal';
 import { GUIDE_STEPS } from '@/app/lib/constants/guideSteps';
 
 // 컴포넌트 Props 인터페이스
@@ -31,12 +31,11 @@ export default function InstaSideJobGuide({
   onStepChange,
   className,
 }: InstaSideJobGuideProps) {
+  const router = useRouter();
   // 현재 활성화된 단계
   const [currentStep, setCurrentStep] = useState(initialStep);
   // 슬라이드 방향 (-1: 이전, 1: 다음)
   const [direction, setDirection] = useState(0);
-  // 완료 모달 표시 여부
-  const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   // 가이드 단계 데이터
   const steps = GUIDE_STEPS;
@@ -152,7 +151,7 @@ export default function InstaSideJobGuide({
         />
 
         {/* 카드 슬라이더 영역 */}
-        <div className="relative min-h-[480px] sm:min-h-[500px] overflow-hidden">
+        <div className="relative overflow-visible">
           <AnimatePresence initial={true} custom={direction} mode="wait">
             <motion.div
               key={currentStep}
@@ -168,7 +167,7 @@ export default function InstaSideJobGuide({
                 scale: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
                 rotateY: { duration: 0.4, ease: [0.4, 0, 0.2, 1] }
               }}
-              className="absolute inset-0 w-full"
+              className="relative w-full"
               style={{ perspective: 1000 }}
             >
                   <StepCard
@@ -177,7 +176,7 @@ export default function InstaSideJobGuide({
                     totalSteps={steps.length}
                     onNext={handleNext}
                     onPrev={handlePrev}
-                    onComplete={() => setShowCompletionModal(true)}
+                    onComplete={() => router.push('/contents/insta-side-job/complete')}
                   />
             </motion.div>
           </AnimatePresence>
@@ -191,13 +190,6 @@ export default function InstaSideJobGuide({
           direction={direction}
         />
       </div>
-
-          {/* 완료 축하 모달 */}
-          <CompletionModal
-            isOpen={showCompletionModal}
-            userName={userName}
-            onClose={() => setShowCompletionModal(false)}
-          />
 
           {/* 애니메이션 스타일 */}
           <style jsx>{`
