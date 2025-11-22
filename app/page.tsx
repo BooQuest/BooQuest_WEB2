@@ -1,3 +1,4 @@
+// 홈 페이지 컴포넌트: 루트 경로(/)에서 표시되는 메인 페이지
 import Image from "next/image";
 
 export default function Home() {

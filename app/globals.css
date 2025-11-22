@@ -1,5 +1,7 @@
+/* 전역 CSS 파일: Tailwind CSS와 커스텀 CSS 변수 설정 */
 @import "tailwindcss";
 
+/* CSS 변수 정의: 라이트 모드용 색상 */
 :root {
   --background: #ffffff;
   --foreground: #171717;
