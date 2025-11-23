@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, CheckCircle2, Image as ImageIcon, Video, Maximize2, X } from 'lucide-react';
+import { ChevronRight, ChevronLeft, CheckCircle2, Image as ImageIcon, Video, Maximize2, X, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import { clsx } from '@/app/lib/utils/clsx';
 
 // localStorage 키 상수
@@ -44,6 +44,14 @@ export interface ImageData {
   title: string; // 이미지 제목
 }
 
+// 입력 필드 타입
+export interface InputField {
+  type: 'text' | 'textarea';
+  label: string;
+  placeholder: string;
+  key: string; // localStorage 키
+}
+
 // 하위 단계 데이터 타입
 export interface SubStep {
   id: number;
@@ -55,6 +63,28 @@ export interface SubStep {
     android?: string;
     ios?: string;
   };
+  inputFields?: InputField[]; // 입력 폼 필드
+  canvaLink?: string; // Canva 링크
+  aiRecommendation?: {
+    enabled: boolean;
+    exampleData: string; // 예시 데이터
+    description: string; // 설명 텍스트
+  };
+  // 4단계 콘텐츠 제작 관련 필드
+  difficulty?: string; // 난이도 ("쉬움", "중간", "어려움")
+  initialRecommendations?: string[]; // 먼저 추천하는 방법들 (첫 번째 탭에만)
+  contentRecommendations?: Array<{
+    title: string;
+    examples: string[];
+  }>; // 추천 콘텐츠 목록
+}
+
+// 목적 선택지 타입
+export interface Purpose {
+  id: string;
+  title: string;
+  description: string;
+  icon: string; // 이모지 또는 아이콘
 }
 
 // 단계 데이터 타입
@@ -69,6 +99,23 @@ export interface Step {
   images?: string[]; // 이미지 경로 배열 (하위 단계가 없을 때 사용)
   video?: string; // 영상 경로 (하위 단계가 없을 때 사용)
   subSteps?: SubStep[]; // 하위 단계 배열
+  purposeSelection?: boolean; // 목적 선택 화면 표시 여부
+  purposes?: Purpose[]; // 목적 선택지 배열
+  purposeSubSteps?: {
+    [purposeId: string]: SubStep[]; // 각 목적별 하위 단계
+  };
+  // 4단계 콘텐츠 제작 공통 정보
+  decorationMethods?: Array<{
+    title: string;
+    description: string;
+  }>; // 콘텐츠 꾸미는 방법 (공통)
+  aiTools?: Array<{
+    name: string;
+    description: string;
+    link: string;
+    isFree?: boolean;
+    category?: '이미지' | '영상';
+  }>; // AI 도구 추천 (공통)
 }
 
 // StepCard 컴포넌트 Props
@@ -94,8 +141,12 @@ export default function StepCard({
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === totalSteps - 1;
   
+  // 목적 선택 상태 (2단계용)
+  const [selectedPurpose, setSelectedPurpose] = useState<string | null>(null);
   // 하위 단계 인덱스 (하위 단계가 있는 경우)
   const [currentSubStepIndex, setCurrentSubStepIndex] = useState(0);
+  // 입력 필드 값 상태 (key: value 형태)
+  const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
   // 이미지/영상 탭 상태
   const [activeTab, setActiveTab] = useState<'images' | 'video'>('images');
   // 현재 이미지 인덱스
@@ -106,11 +157,67 @@ export default function StepCard({
   const [isVideoFullscreen, setIsVideoFullscreen] = useState(false);
   // 클라이언트 사이드 마운트 여부
   const [mounted, setMounted] = useState(false);
+  // 4단계 공통 정보 접기/펼치기 상태
+  const [isDecorationMethodsOpen, setIsDecorationMethodsOpen] = useState(false);
+  const [isAiToolsOpen, setIsAiToolsOpen] = useState(false);
 
-  // 클라이언트 사이드 마운트 확인
+  // 클라이언트 사이드 마운트 확인 및 localStorage에서 목적 복원
   useEffect(() => {
     setMounted(true);
-  }, []);
+    
+    // 목적 선택 단계인 경우, localStorage에서 저장된 목적 불러오기
+    if (step.purposeSelection) {
+      const savedPurpose = localStorage.getItem(`insta-guide-step${step.id}-purpose`);
+      if (savedPurpose) {
+        setSelectedPurpose(savedPurpose);
+      }
+    }
+    
+    // 4단계(콘텐츠 제작)일 때 2단계에서 선택한 목적 불러오기
+    if (step.id === 4 && step.purposeSubSteps) {
+      const savedPurpose = localStorage.getItem('insta-guide-step2-purpose');
+      if (savedPurpose) {
+        setSelectedPurpose(savedPurpose);
+      }
+    }
+  }, [step.id, step.purposeSelection, step.purposeSubSteps]);
+
+  // 입력 필드 값 복원 (하위 단계 인덱스가 변경될 때마다)
+  useEffect(() => {
+    // activeSubSteps 계산
+    const activeSubSteps = step.purposeSelection && selectedPurpose && step.purposeSubSteps
+      ? step.purposeSubSteps[selectedPurpose]
+      : step.subSteps;
+    
+    // currentSubStep 계산
+    const currentSubStep = activeSubSteps?.[currentSubStepIndex];
+    
+    if (currentSubStep?.inputFields) {
+      const loadedValues: { [key: string]: string } = {};
+      currentSubStep.inputFields.forEach((field) => {
+        const savedValue = localStorage.getItem(`insta-guide-step${step.id}-${field.key}`);
+        if (savedValue) {
+          loadedValues[field.key] = savedValue;
+        }
+      });
+      setInputValues(loadedValues);
+    }
+  }, [currentSubStepIndex, selectedPurpose, step.id, step.purposeSelection, step.purposeSubSteps, step.subSteps]);
+
+  // 입력 필드 값 변경 핸들러
+  const handleInputChange = (key: string, value: string) => {
+    setInputValues((prev) => ({ ...prev, [key]: value }));
+    // localStorage에 저장
+    localStorage.setItem(`insta-guide-step${step.id}-${key}`, value);
+  };
+
+  // 목적 선택 핸들러
+  const handlePurposeSelect = (purposeId: string) => {
+    setSelectedPurpose(purposeId);
+    setCurrentSubStepIndex(0); // 하위 단계 인덱스 초기화
+    // localStorage에 저장
+    localStorage.setItem(`insta-guide-step${step.id}-purpose`, purposeId);
+  };
 
   // 가이드 완료 핸들러
   const handleComplete = () => {
@@ -122,9 +229,15 @@ export default function StepCard({
     // 완료 페이지로 이동한 후 localStorage 정리
     // 이름은 완료 페이지에서 먼저 가져온 후에 지워야 함
     setTimeout(() => {
-      localStorage.removeItem(STORAGE_KEY_STARTED);
-      localStorage.removeItem(STORAGE_KEY_USER_NAME);
-      localStorage.removeItem(STORAGE_KEY_CURRENT_STEP);
+      // insta-guide-로 시작하는 모든 키 삭제
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('insta-guide-')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
     }, 100);
   };
 
@@ -169,14 +282,23 @@ export default function StepCard({
     });
   };
 
+  // 현재 표시할 하위 단계 결정
+  // 목적 선택이 있는 경우 또는 4단계처럼 purposeSubSteps만 있는 경우, 선택된 목적의 하위 단계 사용
+  const activeSubSteps = (step.purposeSelection || (step.purposeSubSteps && selectedPurpose)) && selectedPurpose && step.purposeSubSteps
+    ? step.purposeSubSteps[selectedPurpose]
+    : step.subSteps;
+  
   // 현재 표시할 하위 단계 또는 메인 단계 데이터
-  const currentSubStep = step.subSteps?.[currentSubStepIndex];
+  const currentSubStep = activeSubSteps?.[currentSubStepIndex];
   const displayImages = normalizeImages(currentSubStep?.images || step.images);
   const displayVideo = currentSubStep?.video || step.video;
-  const hasSubSteps = step.subSteps && step.subSteps.length > 0;
+  const hasSubSteps = activeSubSteps && activeSubSteps.length > 0;
   
   // 현재 이미지 데이터
   const currentImage = displayImages?.[currentImageIndex];
+  
+  // 목적 선택 화면 표시 여부
+  const showPurposeSelection = step.purposeSelection && !selectedPurpose;
 
   return (
     <>
@@ -342,12 +464,22 @@ export default function StepCard({
               STEP {step.id}
             </motion.span>
             <motion.h2
-              className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight"
+              className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight flex items-center gap-2"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.4 }}
             >
               {step.title}
+              {step.isOptional && (
+                <motion.span
+                  className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-md font-semibold"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4, duration: 0.3 }}
+                >
+                  선택
+                </motion.span>
+              )}
             </motion.h2>
           </div>
           <motion.div
@@ -367,19 +499,6 @@ export default function StepCard({
         >
           {step.description}
         </motion.p>
-
-        {step.isOptional && (
-          <motion.div variants={itemVariants}>
-            <motion.span
-              className="inline-block px-3 py-1.5 bg-blue-50 text-blue-700 text-xs rounded-lg font-bold border border-blue-200"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4, duration: 0.3 }}
-            >
-              선택 사항
-            </motion.span>
-          </motion.div>
-        )}
       </motion.div>
 
           {/* 콘텐츠 영역 */}
@@ -389,15 +508,222 @@ export default function StepCard({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.4 }}
           >
-            {/* 하위 단계 네비게이션 */}
-            {hasSubSteps && step.subSteps && (
+            {/* 목적 선택 화면 (2단계 전용) */}
+            {showPurposeSelection && step.purposes && (
+              <motion.div
+                className="space-y-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7, duration: 0.4 }}
+              >
+                <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">
+                  어떤 목적으로 인스타를 시작하시나요?
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {step.purposes.map((purpose) => (
+                    <motion.button
+                      key={purpose.id}
+                      onClick={() => handlePurposeSelect(purpose.id)}
+                      className="p-6 rounded-2xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all text-left"
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8 + parseInt(purpose.id) * 0.1, duration: 0.3 }}
+                    >
+                      <div className="flex items-start gap-4">
+                        <span className="text-4xl">{purpose.icon}</span>
+                        <div className="flex-1">
+                          <h4 className="text-lg font-bold text-gray-900 mb-1">
+                            {purpose.title}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {purpose.description}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* 공통 정보: 꾸미는 방법 (4단계, 탭 위에 표시) */}
+            {!showPurposeSelection && step.id === 4 && step.decorationMethods && (
+              <motion.div
+                className="mb-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.65, duration: 0.3 }}
+              >
+                <button
+                  onClick={() => setIsDecorationMethodsOpen(!isDecorationMethodsOpen)}
+                  className="w-full flex items-center justify-between text-base font-bold text-gray-900 mb-3 hover:text-gray-700 transition-colors"
+                >
+                  <span>🎨 콘텐츠 꾸미는 방법</span>
+                  {isDecorationMethodsOpen ? (
+                    <ChevronUp size={20} className="text-gray-500" />
+                  ) : (
+                    <ChevronDown size={20} className="text-gray-500" />
+                  )}
+                </button>
+                <AnimatePresence>
+                  {isDecorationMethodsOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {step.decorationMethods.map((method, index) => (
+                          <div
+                            key={index}
+                            className="p-3 bg-purple-50 border border-purple-200 rounded-lg"
+                          >
+                            <h5 className="text-sm font-bold text-gray-900 mb-1">
+                              {method.title}
+                            </h5>
+                            <p className="text-xs text-gray-600">
+                              {method.description}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+
+            {/* 공통 정보: AI 도구 추천 (4단계, 탭 위에 표시) */}
+            {!showPurposeSelection && step.id === 4 && step.aiTools && (
+              <motion.div
+                className="mb-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7, duration: 0.3 }}
+              >
+                <button
+                  onClick={() => setIsAiToolsOpen(!isAiToolsOpen)}
+                  className="w-full flex items-center justify-between text-base font-bold text-gray-900 mb-3 hover:text-gray-700 transition-colors"
+                >
+                  <span>🤖 AI로 이미지/영상 만들기</span>
+                  {isAiToolsOpen ? (
+                    <ChevronUp size={20} className="text-gray-500" />
+                  ) : (
+                    <ChevronDown size={20} className="text-gray-500" />
+                  )}
+                </button>
+                <AnimatePresence>
+                  {isAiToolsOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden space-y-4"
+                    >
+                      {/* 이미지 AI 도구 */}
+                      {step.aiTools?.filter(tool => tool.category === '이미지').length > 0 && (
+                        <div>
+                          <h5 className="text-sm font-bold text-gray-700 mb-2">📷 이미지</h5>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {step.aiTools
+                              .filter(tool => tool.category === '이미지')
+                              .map((tool, index) => (
+                                <motion.a
+                                  key={index}
+                                  href={tool.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-3 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:shadow-md transition-all"
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <div className="flex items-start justify-between mb-1">
+                                    <h5 className="text-sm font-bold text-gray-900">
+                                      {tool.name}
+                                    </h5>
+                                    <ExternalLink size={14} className="text-gray-400" />
+                                  </div>
+                                  <p className="text-xs text-gray-600 mb-2">
+                                    {tool.description}
+                                  </p>
+                                  {tool.isFree !== undefined && (
+                                    <span className={clsx(
+                                      'inline-block text-xs px-2 py-0.5 rounded-full font-semibold',
+                                      tool.isFree
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-orange-100 text-orange-700'
+                                    )}>
+                                      {tool.isFree ? '무료 체험 가능' : '유료'}
+                                    </span>
+                                  )}
+                                </motion.a>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 영상 AI 도구 */}
+                      {step.aiTools?.filter(tool => tool.category === '영상').length > 0 && (
+                        <div>
+                          <h5 className="text-sm font-bold text-gray-700 mb-2">🎬 영상</h5>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {step.aiTools
+                              .filter(tool => tool.category === '영상')
+                              .map((tool, index) => (
+                                <motion.a
+                                  key={index}
+                                  href={tool.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-3 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:shadow-md transition-all"
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <div className="flex items-start justify-between mb-1">
+                                    <h5 className="text-sm font-bold text-gray-900">
+                                      {tool.name}
+                                    </h5>
+                                    <ExternalLink size={14} className="text-gray-400" />
+                                  </div>
+                                  <p className="text-xs text-gray-600 mb-2">
+                                    {tool.description}
+                                  </p>
+                                  {tool.isFree !== undefined && (
+                                    <span className={clsx(
+                                      'inline-block text-xs px-2 py-0.5 rounded-full font-semibold',
+                                      tool.isFree
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-orange-100 text-orange-700'
+                                    )}>
+                                      {tool.isFree ? '무료 체험 가능' : '유료'}
+                                    </span>
+                                  )}
+                                </motion.a>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+
+
+            {/* 하위 단계 네비게이션 (목적 선택 후 표시, 2개 이상일 때만) */}
+            {!showPurposeSelection && hasSubSteps && activeSubSteps && activeSubSteps.length > 1 && (
               <motion.div
                 className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.65, duration: 0.3 }}
               >
-                {step.subSteps.map((subStep, index) => (
+                {activeSubSteps.map((subStep, index) => (
                   <button
                     key={subStep.id}
                     onClick={() => {
@@ -406,20 +732,25 @@ export default function StepCard({
                       setActiveTab('images');
                     }}
                     className={clsx(
-                      'flex-shrink-0 px-4 py-2 rounded-lg font-semibold text-sm transition-all whitespace-nowrap',
+                      'flex-shrink-0 px-4 py-2 rounded-lg font-semibold text-sm transition-all whitespace-nowrap flex items-center gap-1.5',
                       currentSubStepIndex === index
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     )}
                   >
                     {subStep.id}. {subStep.title}
+                    {subStep.difficulty && (
+                      <span className="text-xs font-medium ml-1 opacity-80">
+                        ({subStep.difficulty})
+                      </span>
+                    )}
                   </button>
                 ))}
               </motion.div>
             )}
 
-            {/* 하위 단계 제목 및 설명 */}
-            {currentSubStep && (
+            {/* 하위 단계 제목 및 설명 (목적 선택 후 표시) */}
+            {!showPurposeSelection && currentSubStep && (
               <motion.div
                 className="mb-4"
                 initial={{ opacity: 0, y: -10 }}
@@ -434,9 +765,8 @@ export default function StepCard({
                 )}
               </motion.div>
             )}
-
             {/* 영상 버튼 (영상이 있는 경우) - 타이틀 위로 이동 */}
-            {displayVideo && displayImages && displayImages.length > 0 && (
+            {!showPurposeSelection && displayVideo && displayImages && displayImages.length > 0 && (
               <motion.div
                 className="mb-2 flex justify-end"
                 initial={{ opacity: 0, y: -10 }}
@@ -454,7 +784,7 @@ export default function StepCard({
             )}
 
             {/* 현재 이미지 제목 표시 (이미지가 있고 제목이 있는 경우) */}
-            {displayImages && displayImages.length > 0 && currentImage?.title && (
+            {!showPurposeSelection && displayImages && displayImages.length > 0 && currentImage?.title && (
               <motion.div
                 className="mb-4 relative flex items-center justify-center gap-4"
                 initial={{ opacity: 0, y: -10 }}
@@ -501,7 +831,7 @@ export default function StepCard({
             )}
 
             {/* 영상 버튼만 표시 (이미지가 없고 영상만 있는 경우) */}
-            {(!displayImages || displayImages.length === 0) && displayVideo && (
+            {!showPurposeSelection && (!displayImages || displayImages.length === 0) && displayVideo && (
               <motion.div
                 className="mb-4 flex justify-end"
                 initial={{ opacity: 0, y: -10 }}
@@ -519,7 +849,7 @@ export default function StepCard({
             )}
 
             {/* 앱 설치 링크 (하위 단계 1: 앱 설치) */}
-            {currentSubStep?.links && (
+            {!showPurposeSelection && currentSubStep?.links && (
               <motion.div
                 className="flex flex-col sm:flex-row gap-4 mb-6"
                 initial={{ opacity: 0, y: 20 }}
@@ -554,7 +884,7 @@ export default function StepCard({
             )}
 
             {/* 이미지 슬라이더 (기본 표시, 영상 탭이 아닐 때) */}
-            {activeTab !== 'video' && displayImages && displayImages.length > 0 && (
+            {!showPurposeSelection && activeTab !== 'video' && displayImages && displayImages.length > 0 && (
               <motion.div
                 className="relative w-full flex-1 min-h-[300px] sm:min-h-[400px] flex items-center justify-center"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -650,17 +980,129 @@ export default function StepCard({
               </motion.div>
             )}
 
-            {/* 콘텐츠가 없는 경우 플레이스홀더 */}
-            {!displayImages && !displayVideo && !currentSubStep?.links && (
+            {/* 입력 폼 (inputFields가 있는 경우) */}
+            {!showPurposeSelection && currentSubStep?.inputFields && (
               <motion.div
-                className="w-full h-32 sm:h-40 border-2 border-dashed border-gray-200 rounded-2xl flex items-center justify-center bg-gray-50/50"
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.7, duration: 0.4, ease: 'easeOut' }}
+                className="space-y-4 mb-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7, duration: 0.4 }}
               >
-                <p className="text-gray-400 text-sm font-medium">단계별 상세 내용 영역</p>
+                {currentSubStep.inputFields.map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <label htmlFor={field.key} className="block text-sm font-semibold text-gray-700">
+                      {field.label}
+                    </label>
+                    {field.type === 'text' ? (
+                      <input
+                        type="text"
+                        id={field.key}
+                        placeholder={field.placeholder}
+                        value={inputValues[field.key] || ''}
+                        onChange={(e) => handleInputChange(field.key, e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-gray-900 placeholder-gray-400"
+                      />
+                    ) : (
+                      <textarea
+                        id={field.key}
+                        placeholder={field.placeholder}
+                        rows={4}
+                        value={inputValues[field.key] || ''}
+                        onChange={(e) => handleInputChange(field.key, e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-gray-900 placeholder-gray-400 resize-none"
+                      />
+                    )}
+                  </div>
+                ))}
               </motion.div>
             )}
+
+            {/* AI 추천 결과 (aiRecommendation이 있는 경우) */}
+            {!showPurposeSelection && currentSubStep?.aiRecommendation?.enabled && (
+              <motion.div
+                className="space-y-3 mb-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8, duration: 0.4 }}
+              >
+                <div className="flex items-start gap-2 text-sm text-gray-600 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                  <span className="text-indigo-600 font-bold">💡</span>
+                  <p>{currentSubStep.aiRecommendation.description}</p>
+                </div>
+                <div className="p-4 bg-white border-2 border-indigo-200 rounded-xl">
+                  <h4 className="text-sm font-bold text-gray-700 mb-2">✨ AI 추천 결과</h4>
+                  <p className="text-gray-900 whitespace-pre-line">{currentSubStep.aiRecommendation.exampleData}</p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Canva 링크 (canvaLink가 있는 경우) */}
+            {!showPurposeSelection && currentSubStep?.canvaLink && (
+              <motion.div
+                className="space-y-4 mb-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7, duration: 0.4 }}
+              >
+                <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl space-y-3">
+                  <p className="text-gray-700 font-medium">
+                    업체를 대표하는 <span className="font-bold text-gray-900">음식/공간 또는 서비스 이미지</span>를 사용하세요
+                  </p>
+                  <div className="flex items-start gap-2 text-sm text-orange-700 bg-orange-100 p-3 rounded-lg">
+                    <span className="font-bold">⚠️</span>
+                    <p className="font-semibold">로고는 신생 업체에게 이탈률이 높습니다!</p>
+                  </div>
+                  <motion.a
+                    href={currentSubStep.canvaLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold text-center shadow-lg hover:shadow-xl transition-all"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    🎨 Canva에서 프로필 사진 만들기
+                  </motion.a>
+                </div>
+              </motion.div>
+            )}
+
+            {/* 추천 콘텐츠 목록 (모든 탭 동일 구조) */}
+            {!showPurposeSelection && currentSubStep?.contentRecommendations && (
+              <motion.div
+                className="mb-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8, duration: 0.3 }}
+              >
+                <h4 className="text-base font-bold text-gray-900 mb-3">
+                  ✅ 추천 콘텐츠
+                </h4>
+                <div className="space-y-4">
+                  {currentSubStep.contentRecommendations.map((rec, index) => (
+                    <div
+                      key={index}
+                      className="p-4 bg-green-50 border border-green-200 rounded-lg"
+                    >
+                      <h5 className="text-sm font-bold text-gray-900 mb-2">
+                        {index + 1}. {rec.title}
+                      </h5>
+                      {rec.examples && rec.examples.length > 0 && (
+                        <ul className="space-y-1">
+                          {rec.examples.map((example, exIdx) => (
+                            <li key={exIdx} className="text-xs text-gray-600 flex items-start gap-2">
+                              <span className="text-green-600">-</span>
+                              {example}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+
           </motion.div>
 
       {/* 네비게이션 버튼 */}
